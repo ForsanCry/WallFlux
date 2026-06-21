@@ -1,0 +1,9 @@
+{
+  "name": "WallFlux",
+  "description": "Minimizes and restores windows on demand for WallFlux wallpaper transitions.",
+  "uuid": "wallflux@wallflux",
+  "version": 1,
+  "shell-version": ["45", "46", "47", "48", "49"],
+  "url": "https://github.com/wallflux/wallflux",
+  "settings-schema": ""
+}
