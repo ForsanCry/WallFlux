@@ -38,13 +38,24 @@ def hanabi_set_video(video_path: Path):
     subprocess.run(["gsettings", "set", HANABI_SCHEMA, "video-path", str(video_path)], check=True)
 
 def hanabi_enable():
-    subprocess.run(["gnome-extensions", "disable", HANABI_UUID], capture_output=True)
-    time.sleep(1)
-    # Mute açık başlat — başlangıç sesini engeller
-    subprocess.run(["gsettings", "set", HANABI_SCHEMA, "mute", "true"], check=True)
-    subprocess.run(["gnome-extensions", "enable", HANABI_UUID], check=True)
+    # Check if already running
+    result = subprocess.run(
+        ["gdbus", "call", "--session", "--dest", "org.freedesktop.DBus",
+         "--object-path", "/org/freedesktop/DBus", "--method", "org.freedesktop.DBus.ListNames"],
+        capture_output=True, text=True
+    )
+    already_running = HANABI_DBUS in result.stdout
+
+    subprocess.run(["gsettings", "set", HANABI_SCHEMA, "mute", "true"], capture_output=True)
+
+    if not already_running:
+        # First time — need to enable
+        subprocess.run(["gnome-extensions", "disable", HANABI_UUID], capture_output=True)
+        time.sleep(0.5)
+        subprocess.run(["gnome-extensions", "enable", HANABI_UUID], check=True)
 
 def hanabi_disable():
+    subprocess.run(["gsettings", "set", HANABI_SCHEMA, "mute", "true"], capture_output=True)
     subprocess.run(["gnome-extensions", "disable", HANABI_UUID], capture_output=True)
 
 def hanabi_set_play():
@@ -58,7 +69,7 @@ def hanabi_set_play():
     if result.returncode != 0:
         print(f"  setPlay warning: {result.stderr.strip()}")
 
-def hanabi_wait_for_renderer(timeout: float = 5.0) -> bool:
+def hanabi_wait_for_renderer(timeout: float = 15.0) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         result = subprocess.run(
