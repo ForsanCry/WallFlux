@@ -23,7 +23,7 @@ from core.wallpaper import (
 )
 from core.gnome import ping_extension, minimize_all, restore_all
 
-SETPLAY_LAG = 0.3
+SETPLAY_LAG = 0.0
 
 def run(profile_name: str):
 
@@ -77,8 +77,16 @@ def run(profile_name: str):
             window_ids = minimize_all()
         except Exception as e:
             print(f"  Warning: minimize failed: {e}")
-
-    play_fullscreen(highlight_path, on_near_end=_on_end, pre_end_ms=50)
+#------------------------------------------------------------------------
+#    play_fullscreen(highlight_path, on_near_end=_on_end, pre_end_ms=100)
+#------------------------------------------------------------------------
+    play_fullscreen(highlight_path)
+    # mpv finished
+    try:
+        window_ids = minimize_all()
+    except Exception as e:
+        print(f"  Warning: minimize failed: {e}")
+#------------------------------------------------------------------------
 
     # 6. Highlight done → setPlay immediately
     hanabi_set_play()
