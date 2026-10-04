@@ -1,166 +1,200 @@
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from core.profile import WALLFLUX_DIR, PROFILES_DIR, WPORIGIN_DIR, CONFIG_FILE
+import tomli_w
 
-REQUIRED_BINARIES = ["mpv", "ffmpeg", "mpvpaper"]
-LOCAL_BIN         = Path.home() / ".local" / "bin"
-WRAPPER_PATH      = LOCAL_BIN / "wallflux"
-EXTENSION_SRC     = Path(__file__).parent.parent / "extension"
-EXTENSION_DST     = (
-    Path.home()
-    / ".local/share/gnome-shell/extensions/wallflux@wallflux"
-)
+from core.profile import PROGRAM_DIR, CONFIG_FILE
+from core.wallpaper import HANABI_UUID
 
+VERSION = "0.1.0"
+REQUIRED_BINARIES = ["mpv", "ffmpeg"]
+MIN_GNOME = 45
 
-def run():
-    print("WallFlux Installer\n")
-
-    _check_wayland()
-    _check_gnome()
-    missing = _check_dependencies()
-    if missing:
-        _print_install_hint(missing)
-        sys.exit(1)
-    _create_directories()
-    _write_default_config()
-    _install_extension()
-    _install_wrapper()
-
-    print("\n✓ WallFlux installed successfully.")
-    print("  Run 'wallflux help' to get started.")
+EXT_SRC = PROGRAM_DIR / "extension"
+EXT_ROOT = Path.home() / ".local" / "share" / "gnome-shell" / "extensions"
+WRAPPER = Path.home() / ".local" / "bin" / "wallflux"
+HANABI_URL = "https://extensions.gnome.org/extension/6441/hanabi/"
 
 
-# ─── Checks ───────────────────────────────────────────────────────────────────
+def _fail(msg: str):
+    print(f"✗ {msg}")
+    sys.exit(1)
+
+
+def _ok(msg: str):
+    print(f"✓ {msg}")
+
+
+# ── Checks ────────────────────────────────────────────────────────────
 
 def _check_wayland():
-    if not os.environ.get("WAYLAND_DISPLAY"):
-        print("✗ Wayland session not detected.")
-        print("  WallFlux requires a Wayland session (GNOME on Wayland).")
-        sys.exit(1)
-    print("✓ Wayland session detected")
+    if os.environ.get("XDG_SESSION_TYPE", "").lower() != "wayland":
+        _fail("WallFlux needs a Wayland session (X11 is not supported).")
+    _ok("Wayland session")
 
 
-def _check_gnome():
-    result = subprocess.run(
-        ["gnome-shell", "--version"],
-        capture_output=True, text=True
-    )
+def _check_gnome() -> int:
+    result = subprocess.run(["gnome-shell", "--version"], capture_output=True, text=True)
     if result.returncode != 0:
-        print("✗ GNOME Shell not found.")
-        sys.exit(1)
-
-    try:
-        version_str = result.stdout.strip().split()[-1]
-        major = int(version_str.split(".")[0])
-    except (IndexError, ValueError):
-        print("✗ Could not parse GNOME Shell version.")
-        sys.exit(1)
-
-    if major < 45:
-        print(f"✗ GNOME Shell {major} detected. WallFlux requires GNOME 45+.")
-        sys.exit(1)
-
-    print(f"✓ GNOME Shell {major} detected")
+        _fail("GNOME Shell not found.")
+    match = re.search(r"(\d+)", result.stdout)
+    if not match:
+        _fail(f"Could not parse GNOME version: {result.stdout.strip()}")
+    major = int(match.group(1))
+    if major < MIN_GNOME:
+        _fail(f"GNOME {MIN_GNOME}+ required, found {major}.")
+    _ok(f"GNOME Shell {major}")
     return major
 
 
-def _check_dependencies() -> list[str]:
-    missing = []
-    for binary in REQUIRED_BINARIES:
-        if shutil.which(binary) is None:
-            missing.append(binary)
-            print(f"✗ {binary} not found")
-        else:
-            print(f"✓ {binary} found")
-    return missing
-
-
 def _print_install_hint(missing: list[str]):
-    """Detect the system package manager and print the right install command."""
-    print(f"\n  Missing: {', '.join(missing)}")
-
-    pm = _detect_package_manager()
-
-    if pm == "dnf":
-        print(f"  Run: sudo dnf install {' '.join(missing)}")
-    elif pm == "apt":
-        print(f"  Run: sudo apt install {' '.join(missing)}")
-    elif pm == "pacman":
-        print(f"  Run: sudo pacman -S {' '.join(missing)}")
-    elif pm == "zypper":
-        print(f"  Run: sudo zypper install {' '.join(missing)}")
-    elif pm == "apk":
-        print(f"  Run: sudo apk add {' '.join(missing)}")
-    else:
-        print(f"  Please install the missing packages using your system package manager.")
-
-    print("  Then run 'wallflux install' again.")
+    pkgs = " ".join(missing)
+    managers = [
+        ("dnf", f"sudo dnf install {pkgs}"),
+        ("apt", f"sudo apt install {pkgs}"),
+        ("pacman", f"sudo pacman -S {pkgs}"),
+        ("zypper", f"sudo zypper install {pkgs}"),
+        ("apk", f"sudo apk add {pkgs}"),
+    ]
+    for binary, cmd in managers:
+        if shutil.which(binary):
+            print(f"  Try: {cmd}")
+            return
+    print(f"  Install these with your package manager: {pkgs}")
 
 
-def _detect_package_manager() -> str | None:
-    """Return the name of the available package manager, or None."""
-    for pm in ["dnf", "apt", "pacman", "zypper", "apk"]:
-        if shutil.which(pm):
-            return pm
-    return None
-
-
-# ─── Setup ────────────────────────────────────────────────────────────────────
-
-def _create_directories():
-    for d in [WALLFLUX_DIR, PROFILES_DIR, WPORIGIN_DIR]:
-        d.mkdir(parents=True, exist_ok=True)
-    print("✓ ~/.WallFlux/ directory structure created")
-
-
-def _write_default_config():
-    if CONFIG_FILE.exists():
-        print("✓ config.toml already exists, skipping")
-        return
-    CONFIG_FILE.write_text('[wallflux]\nversion = "0.1.0"\n')
-    print("✓ config.toml written")
-
-
-def _install_extension():
-    if not EXTENSION_SRC.exists():
-        print("✗ Extension source not found. Is the wallflux repo intact?")
+def _check_dependencies():
+    missing = [b for b in REQUIRED_BINARIES if shutil.which(b) is None]
+    for b in REQUIRED_BINARIES:
+        if b in missing:
+            print(f"✗ {b} not found")
+        else:
+            _ok(f"{b} found")
+    if missing:
+        print()
+        print("Missing: " + ", ".join(missing))
+        _print_install_hint(missing)
         sys.exit(1)
 
-    if EXTENSION_DST.exists():
-        shutil.rmtree(EXTENSION_DST)
 
-    shutil.copytree(EXTENSION_SRC, EXTENSION_DST)
-    print("✓ GNOME Shell extension installed")
+# ── Setup steps ───────────────────────────────────────────────────────
 
-    result = subprocess.run(
-        ["gnome-extensions", "enable", "wallflux@wallflux"],
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        print("  ⚠ Could not auto-enable extension.")
-        print("    Run: gnome-extensions enable wallflux@wallflux")
+def _ask_data_dir() -> Path:
+    print()
+    print("Where should WallFlux keep your profiles and data?")
+    print(f"  [1] {PROGRAM_DIR}   (program folder, visible)")
+    print("  [2] ~/.wallflux        (hidden)")
+    print("  [3] Custom path")
+    choice = input("Choice [1]: ").strip() or "1"
+
+    if choice == "1":
+        return PROGRAM_DIR
+    if choice == "2":
+        return Path.home() / ".wallflux"
+    if choice == "3":
+        raw = input("Path: ").strip()
+        if not raw:
+            _fail("No path given.")
+        return Path(raw).expanduser().resolve()
+    _fail("Invalid choice.")
+
+
+def _create_directories(data_dir: Path):
+    (data_dir / "profiles").mkdir(parents=True, exist_ok=True)
+    (data_dir / "wporigin").mkdir(parents=True, exist_ok=True)
+    _ok(f"Data directory: {data_dir}")
+
+
+def _write_config(data_dir: Path):
+    config = {
+        "wallflux": {
+            "version": VERSION,
+            "install_path": str(PROGRAM_DIR),
+            "data_path": str(data_dir),
+        }
+    }
+    with open(CONFIG_FILE, "wb") as f:
+        tomli_w.dump(config, f)
+    _ok(f"Config written: {CONFIG_FILE}")
+
+
+def _install_extension(gnome_major: int):
+    if not EXT_SRC.exists():
+        _fail(f"Extension folder missing: {EXT_SRC}")
+
+    meta_path = EXT_SRC / "metadata.json"
+    meta = json.loads(meta_path.read_text())
+    uuid = meta["uuid"]
+
+    versions = meta.get("shell-version", [])
+    if str(gnome_major) not in versions:
+        versions.append(str(gnome_major))
+        meta["shell-version"] = versions
+        meta_path.write_text(json.dumps(meta, indent=2) + "\n")
+
+    dest = EXT_ROOT / uuid
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(EXT_SRC, dest)
+    _ok(f"Extension copied: {dest}")
+
+    result = subprocess.run(["gnome-extensions", "enable", uuid], capture_output=True, text=True)
+    if result.returncode == 0:
+        _ok("Extension enabled")
     else:
-        print("✓ Extension enabled")
+        print("! Could not enable the extension yet.")
+    print("  Note: a new extension may need a logout/login before GNOME sees it.")
 
 
-def _install_wrapper():
-    LOCAL_BIN.mkdir(parents=True, exist_ok=True)
+def _install_wrapper(data_dir: Path):
+    WRAPPER.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "#!/bin/sh",
+        f'export WALLFLUX_INSTALL="{PROGRAM_DIR}"',
+        f'export WALLFLUX_DATA="{data_dir}"',
+        'exec python3 "$WALLFLUX_INSTALL/wallflux.py" "$@"',
+        "",
+    ]
+    WRAPPER.write_text("\n".join(lines))
+    WRAPPER.chmod(0o755)
+    _ok(f"Command installed: {WRAPPER}")
 
-    repo_dir    = Path(__file__).parent.parent.resolve()
-    entry_point = repo_dir / "wallflux.py"
-
-    WRAPPER_PATH.write_text(
-        f'#!/bin/bash\nexec python3 "{entry_point}" "$@"\n'
-    )
-    WRAPPER_PATH.chmod(0o755)
-    print(f"✓ Wrapper installed → {WRAPPER_PATH}")
-
-    if str(LOCAL_BIN) not in os.environ.get("PATH", ""):
-        print("\n  ⚠ ~/.local/bin is not in your PATH.")
-        print("  Add this to your ~/.bashrc or ~/.zshrc:")
+    path_dirs = os.environ.get("PATH", "").split(":")
+    if str(WRAPPER.parent) not in path_dirs:
+        print(f"! {WRAPPER.parent} is not in your PATH. Add this to ~/.bashrc:")
         print('    export PATH="$HOME/.local/bin:$PATH"')
-        print("  Then run: source ~/.bashrc")
+
+
+def _check_hanabi():
+    result = subprocess.run(["gnome-extensions", "list"], capture_output=True, text=True)
+    if HANABI_UUID in result.stdout:
+        _ok("Hanabi extension found")
+    else:
+        print("! Hanabi extension not found (needed for the live wallpaper).")
+        print(f"  Install it from: {HANABI_URL}")
+
+
+# ── Entry ─────────────────────────────────────────────────────────────
+
+def run():
+    print("\nWallFlux Installer\n")
+    _check_wayland()
+    gnome_major = _check_gnome()
+    _check_dependencies()
+
+    data_dir = _ask_data_dir()
+    print()
+    _create_directories(data_dir)
+    _write_config(data_dir)
+    _install_extension(gnome_major)
+    _install_wrapper(data_dir)
+    _check_hanabi()
+
+    print("\n✓ WallFlux installed.")
+    print("  Try: wallflux help")
