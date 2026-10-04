@@ -48,8 +48,20 @@ def run():
         print("Profiles and data removed")
 
     if install_path.exists():
-        subprocess.run(["rm", "-rf", str(install_path)])
-        print("Program files removed")
+        if data_path.resolve() == install_path.resolve() and not remove_data:
+            # Aynı klasör: profilleri koru, geri kalanı sil
+            keep = {"profiles", "wporigin"}
+            for item in install_path.iterdir():
+                if item.name in keep:
+                    continue
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+            print("Program files removed (profiles kept)")
+        else:
+            subprocess.run(["rm", "-rf", str(install_path)])
+            print("Program files removed")
 
     print()
     print("WallFlux has been uninstalled.")
