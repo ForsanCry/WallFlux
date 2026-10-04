@@ -34,10 +34,10 @@ EXAMPLES:
   wallflux rm ghostedit
 
 FILES:
-  ~/.WallFlux/profiles/<name>/
+  ~/wallflux/profiles/<name>/
     .COPIED_<original>.mp4     source copy
     .highlight_<name>.mp4      fullscreen segment
     .wp_<name>.mp4             wallpaper segment
-  ~/.WallFlux/wporigin/        original wallpaper backup
-  ~/.WallFlux/config.toml      configuration
+  ~/wallflux/wporigin/        original wallpaper backup
+  ~/wallflux/config.toml      configuration
 """)

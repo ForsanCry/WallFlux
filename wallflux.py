@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
 import sys
-from commands import install, new, play, edit, rm, list_profiles, info, help_cmd
+from commands import install, uninstall, new, play, edit, rm, list_profiles, info, help_cmd
 from core.profile import profile_exists
+
 
 def main():
     args = sys.argv[1:]
@@ -16,6 +17,8 @@ def main():
     match cmd:
         case "install":
             install.run()
+        case "uninstall":
+            uninstall.run()
         case "new":
             if len(args) < 3:
                 print("Usage: wallflux new <profile> <video>")
@@ -46,13 +49,14 @@ def main():
         case "help":
             help_cmd.run()
         case _:
-            # wallflux ghostedit → play shortcut
+            # wallflux ghostedit -> play shortcut
             if profile_exists(cmd):
                 play.run(cmd)
             else:
                 print(f"Unknown command or profile not found: '{cmd}'")
                 print("Run 'wallflux help' for usage.")
                 sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
