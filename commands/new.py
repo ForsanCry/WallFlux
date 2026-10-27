@@ -6,10 +6,14 @@ from pathlib import Path
 from core.profile import (
     profile_exists,
     save_profile,
+    delete_profile,
     get_profile_dir,
     get_copied_video_path,
     get_highlight_path,
     get_wp_path,
+    is_reserved_name,
+    is_idle,
+    set_idle,
 )
 from core.video import (
     get_duration,
@@ -22,6 +26,9 @@ from core.video import (
 
 
 def run(profile_name: str, video_arg: str):
+    # ── 0. Reserved name check ─────────────────────────────────────────────
+    _check_name(profile_name)
+
     # ── 1. Resolve video path ──────────────────────────────────────────────
     video_path = _resolve_video(video_arg)
 
@@ -113,7 +120,68 @@ def run(profile_name: str, video_arg: str):
     print(f"  Run: wallflux play {profile_name}")
 
 
+def run_idle(profile_name: str, video_arg: str | None = None):
+    """
+    wallflux new idle <name>           -> add an existing profile to idle
+    wallflux new idle <name> <video>   -> create a new idle-only profile (no cut)
+    """
+    _check_name(profile_name)
+
+    # ── Case 1: no video given -> mark an existing profile as idle ────────
+    if video_arg is None:
+        if not profile_exists(profile_name):
+            print(f"Profile '{profile_name}' not found.")
+            print("To create an idle profile from a video:")
+            print("  wallflux new idle <name> <video>")
+            sys.exit(1)
+        if is_idle(profile_name):
+            print(f"'{profile_name}' is already in idle.")
+            return
+        set_idle(profile_name, True)
+        print(f"✓ '{profile_name}' added to idle.")
+        # TODO (step 2): run the idle setup wizard if idle.toml does not exist yet
+        return
+
+    # ── Case 2: video given -> new idle-only profile ──────────────────────
+    video_path = _resolve_video(video_arg)
+
+    if profile_exists(profile_name):
+        print(f"Profile '{profile_name}' already exists.")
+        overwrite = input("Overwrite? [y/N] ").strip().lower()
+        if overwrite != "y":
+            print("Aborted.")
+            sys.exit(0)
+        delete_profile(profile_name)   # drop old files so nothing stale is left behind
+
+    get_profile_dir(profile_name).mkdir(parents=True, exist_ok=True)
+
+    copied_path = get_copied_video_path(profile_name, video_path.name)
+    print(f"\nCopying video → {copied_path.name} ...")
+    shutil.copy2(video_path, copied_path)
+    print("✓ Done")
+
+    duration = get_duration(copied_path)
+    print(f"  Duration : {seconds_to_timestamp(duration)}")
+
+    # No cut point: idle plays the whole video, so no highlight/wp files are made
+    save_profile(profile_name, {
+        "name":             profile_name,
+        "original_file":    video_path.name,
+        "duration":         duration,
+        "idle":             True,
+    })
+
+    print(f"\n✓ Idle profile '{profile_name}' ready (no cut needed).")
+    # TODO (step 2): run the idle setup wizard if idle.toml does not exist yet
+
+
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _check_name(profile_name: str):
+    if is_reserved_name(profile_name):
+        print(f"✗ '{profile_name}' is a command name and cannot be used as a profile name.")
+        sys.exit(1)
+
 
 def _resolve_video(video_arg: str) -> Path:
     """Accept absolute path or filename relative to cwd."""
