@@ -2,6 +2,8 @@
 profiles/
 wporigin/
 config.toml
+idle.toml
+idle.state
 
 # IDE
 .idea/
