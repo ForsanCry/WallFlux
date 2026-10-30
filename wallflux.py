@@ -2,7 +2,7 @@
 
 import subprocess
 import sys
-from commands import install, uninstall, new, play, edit, rm, list_profiles, info, help_cmd
+from commands import install, uninstall, new, play, edit, rm, list_profiles, info, help_cmd, idle
 from core.profile import profile_exists, has_cut, get_full_video_path
 
 
@@ -73,6 +73,8 @@ def main():
                 print("Usage: wallflux info <profile>")
                 sys.exit(1)
             info.run(args[1])
+        case "idle":
+            idle.run(args[1:])
         case "help":
             help_cmd.run()
         case _:
