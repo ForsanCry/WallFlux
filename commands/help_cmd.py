@@ -17,6 +17,11 @@ COMMANDS:
   edit <profile> --time/--t    Change the cut point of a profile
                                (on an idle-only profile: add a cut point)
   info <profile>               Show profile details
+  idle                         Show the idle settings
+  idle setup                   Run the idle setup again
+  idle set time <time>         Idle time before the video starts (10, 30s, 10m, 1h)
+  idle set after <what>        After the video: dim | screen_off | hold | loop
+  idle set lock <yes|no>       Lock the screen when you come back
   help                         Show this help message
 
 TIME FORMAT:
@@ -47,4 +52,5 @@ FILES:
     .wp_<name>.mp4             wallpaper segment
   ~/wallflux/wporigin/        original wallpaper backup
   ~/wallflux/config.toml      configuration
+  ~/wallflux/idle.toml        idle settings (shared by all idle profiles)
 """)
