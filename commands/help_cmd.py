@@ -6,12 +6,16 @@ COMMANDS:
   install                      Check dependencies and install WallFlux
   uninstall                    Remove WallFlux from your system
   new <profile> <video>        Create a new profile from a video file
+  new idle <name>              Add an existing profile to idle
+  new idle <name> <video>      Create an idle-only profile (no cut needed)
   play <profile>               Play a profile (fullscreen → wallpaper)
   <profile>                    Shortcut for 'play'
   list                         List all profiles
   rm <profile>                 Delete a profile and its files
+  rm idle <profile>            Remove a profile from idle
   edit <profile> --name/--p    Rename a profile
   edit <profile> --time/--t    Change the cut point of a profile
+                               (on an idle-only profile: add a cut point)
   info <profile>               Show profile details
   help                         Show this help message
 
@@ -32,10 +36,13 @@ EXAMPLES:
   wallflux edit ghostedit --p
   wallflux info ghostedit
   wallflux rm ghostedit
+  wallflux new idle ghostedit               # add an existing profile to idle
+  wallflux new idle calm ~/Videos/calm.mp4  # idle-only profile, no cut
+  wallflux rm idle ghostedit                # take it out of idle again
 
 FILES:
   ~/wallflux/profiles/<name>/
-    .COPIED_<original>.mp4     source copy
+    .COPIED_<original>.mp4     source copy (idle plays this one)
     .highlight_<name>.mp4      fullscreen segment
     .wp_<name>.mp4             wallpaper segment
   ~/wallflux/wporigin/        original wallpaper backup
