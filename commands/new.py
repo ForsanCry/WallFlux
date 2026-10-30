@@ -15,6 +15,7 @@ from core.profile import (
     is_idle,
     set_idle,
 )
+from commands import idle as idle_cmd
 from core.video import (
     get_duration,
     detect_cut_point,
@@ -141,10 +142,11 @@ def run_idle(profile_name: str, video_arg: str | None = None):
             sys.exit(1)
         if is_idle(profile_name):
             print(f"'{profile_name}' is already in idle.")
+            idle_cmd.ensure_setup()      # e.g. flagged before idle.toml existed
             return
         set_idle(profile_name, True)
         print(f"✓ '{profile_name}' added to idle.")
-        # TODO (step 2): run the idle setup wizard if idle.toml does not exist yet
+        idle_cmd.ensure_setup()
         return
 
     # ── Case 2: video given -> new idle-only profile ──────────────────────
@@ -177,7 +179,7 @@ def run_idle(profile_name: str, video_arg: str | None = None):
     })
 
     print(f"\n✓ Idle profile '{profile_name}' ready (no cut needed).")
-    # TODO (step 2): run the idle setup wizard if idle.toml does not exist yet
+    idle_cmd.ensure_setup()
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
