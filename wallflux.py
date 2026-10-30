@@ -51,10 +51,18 @@ def main():
         case "list":
             list_profiles.run()
         case "rm":
-            if len(args) < 2:
+            if len(args) >= 2 and args[1] == "idle":
+                # wallflux rm idle <name>
+                if len(args) < 3:
+                    print("Usage: wallflux rm idle <profile>")
+                    sys.exit(1)
+                rm.run_idle(args[2])
+            elif len(args) < 2:
                 print("Usage: wallflux rm <profile>")
+                print("       wallflux rm idle <profile>")
                 sys.exit(1)
-            rm.run(args[1])
+            else:
+                rm.run(args[1])
         case "edit":
             if len(args) < 3:
                 print("Usage: wallflux edit <profile> --name/--p | --time/--t")
