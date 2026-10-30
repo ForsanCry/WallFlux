@@ -33,12 +33,14 @@ def run(profile_name: str, video_arg: str):
     video_path = _resolve_video(video_arg)
 
     # ── 2. Profile name check ──────────────────────────────────────────────
+    keep_idle = False
     if profile_exists(profile_name):
         print(f"Profile '{profile_name}' already exists.")
         overwrite = input("Overwrite? [y/N] ").strip().lower()
         if overwrite != "y":
             print("Aborted.")
             sys.exit(0)
+        keep_idle = is_idle(profile_name)   # overwriting must not drop idle membership
 
     profile_dir = get_profile_dir(profile_name)
     profile_dir.mkdir(parents=True, exist_ok=True)
@@ -109,12 +111,15 @@ def run(profile_name: str, video_arg: str):
     print(f"  ✓ .wp_{profile_name}.mp4         ({seconds_to_timestamp(duration - cut_point)})")
 
     # ── 9. Save profile.toml ──────────────────────────────────────────────
-    save_profile(profile_name, {
+    data = {
         "name":             profile_name,
         "original_file":    video_path.name,
         "cut_point":        cut_point,
         "duration":         duration,
-    })
+    }
+    if keep_idle:
+        data["idle"] = True
+    save_profile(profile_name, data)
 
     print(f"\n✓ Profile '{profile_name}' ready.")
     print(f"  Run: wallflux play {profile_name}")
