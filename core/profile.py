@@ -69,3 +69,40 @@ def get_highlight_path(name: str) -> Path:
 
 def get_wp_path(name: str) -> Path:
     return get_profile_dir(name) / f".wp_{name}.mp4"
+
+
+# ─── Idle support ─────────────────────────────────────────────────────────────
+
+# Command words. A profile with one of these names could never be played with
+# the 'wallflux <profile>' shortcut, because the command would win.
+RESERVED_NAMES = {
+    "install", "uninstall", "new", "play", "list", "rm", "edit",
+    "info", "help", "idle",
+}
+
+def is_reserved_name(name: str) -> bool:
+    return name.lower() in RESERVED_NAMES
+
+def is_idle(name: str) -> bool:
+    """True if the profile is in the idle pool (flag 'idle = true' in profile.toml)."""
+    try:
+        return bool(load_profile(name).get("idle", False))
+    except FileNotFoundError:
+        return False
+
+def set_idle(name: str, value: bool):
+    data = load_profile(name)
+    data["idle"] = value
+    save_profile(name, data)
+
+def has_cut(name: str) -> bool:
+    """True for normal profiles. Idle-only profiles are never cut, so they have no cut_point."""
+    return "cut_point" in load_profile(name)
+
+def list_idle_profiles() -> list[str]:
+    return sorted(n for n in list_profiles() if is_idle(n))
+
+def get_full_video_path(name: str) -> Path:
+    """The whole original video (.COPIED_*). This is what idle plays."""
+    original = load_profile(name)["original_file"]
+    return get_copied_video_path(name, original)

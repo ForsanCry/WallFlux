@@ -4,7 +4,7 @@ from pathlib import Path
 from core.profile import (
     load_profile, save_profile, profile_exists,
     get_profile_dir, get_highlight_path, get_wp_path,
-    get_copied_video_path, PROFILES_DIR,
+    get_copied_video_path, PROFILES_DIR, is_reserved_name,
 )
 from core.video import (
     parse_timestamp, seconds_to_timestamp,
@@ -48,6 +48,10 @@ def _edit_name(profile_name: str):
         print("Name unchanged.")
         return
 
+    if is_reserved_name(new_name):
+        print(f"✗ '{new_name}' is a command name and cannot be used as a profile name.")
+        sys.exit(1)
+
     if profile_exists(new_name):
         print(f"✗ A profile named '{new_name}' already exists.")
         sys.exit(1)
@@ -55,11 +59,14 @@ def _edit_name(profile_name: str):
     old_dir = get_profile_dir(profile_name)
     new_dir = PROFILES_DIR / new_name
 
-    # Rename files that contain the profile name
-    for f in old_dir.iterdir():
-        if profile_name in f.name:
-            new_fname = f.name.replace(profile_name, new_name)
-            f.rename(old_dir / new_fname)
+    # Rename only the two files that are named after the profile.
+    # The source copy (.COPIED_*) is named after the original video and profile.toml
+    # remembers that name, so it must keep its name (renaming it broke re-cutting
+    # and idle whenever the profile name appeared inside the video's file name).
+    for prefix in (".highlight_", ".wp_"):
+        old_file = old_dir / f"{prefix}{profile_name}.mp4"
+        if old_file.exists():
+            old_file.rename(old_dir / f"{prefix}{new_name}.mp4")
 
     # Rename the directory itself
     old_dir.rename(new_dir)
@@ -76,10 +83,15 @@ def _edit_name(profile_name: str):
 
 def _edit_time(profile_name: str):
     profile = load_profile(profile_name)
+    had_cut = "cut_point" in profile          # idle-only profiles have no cut yet
     old_cut = profile.get("cut_point", 0)
     duration = profile.get("duration", 0)
 
-    print(f"\n  Current cut point : {seconds_to_timestamp(old_cut)}")
+    if had_cut:
+        print(f"\n  Current cut point : {seconds_to_timestamp(old_cut)}")
+    else:
+        print("\n  This is an idle-only profile (no cut point yet).")
+        print("  Setting one turns it into a normal WallFlux profile (it stays in idle).")
     print(f"  Video duration    : {seconds_to_timestamp(duration)}")
     print(f"  Format: 32 / 32.450 / 1:32 / 1:32.450 / 1:04:32.450\n")
 
@@ -113,7 +125,7 @@ def _edit_time(profile_name: str):
             old_file.unlink()
 
     # Re-cut losslessly
-    print("\nRe-cutting (lossless) ...")
+    print("\nRe-cutting (lossless) ..." if had_cut else "\nCutting (lossless) ...")
     try:
         cut_video(source, get_highlight_path(profile_name), get_wp_path(profile_name), new_cut)
     except RuntimeError as e:
@@ -124,9 +136,13 @@ def _edit_time(profile_name: str):
     profile["cut_point"] = new_cut
     save_profile(profile_name, profile)
 
-    print(f"  ✓ .highlight_{profile_name}.mp4  updated")
-    print(f"  ✓ .wp_{profile_name}.mp4         updated")
-    print(f"  ✓ Cut point: {seconds_to_timestamp(old_cut)} → {seconds_to_timestamp(new_cut)}")
+    verb = "updated" if had_cut else "created"
+    print(f"  ✓ .highlight_{profile_name}.mp4  {verb}")
+    print(f"  ✓ .wp_{profile_name}.mp4         {verb}")
+    if had_cut:
+        print(f"  ✓ Cut point: {seconds_to_timestamp(old_cut)} → {seconds_to_timestamp(new_cut)}")
+    else:
+        print(f"  ✓ Cut point: {seconds_to_timestamp(new_cut)}")
 
 
 def _ask_timestamp(duration: float) -> float:
